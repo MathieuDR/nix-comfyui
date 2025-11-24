@@ -1,15 +1,21 @@
-{ autoPatchelfHook, basePython, ffmpeg_6, lib, sox, tbb_2021 }:
-
-final: prev:
-
-let
+{
+  autoPatchelfHook,
+  basePython,
+  ffmpeg_6,
+  lib,
+  sox,
+  onetbb,
+}: final: prev: let
   ops = import ./ops.nix;
 
   inherit (final.python) sitePackages;
 
   bootstrappingBase = basePython.pythonOnBuildForHost.pkgs;
 
-  mkFailingPackage = { pname, message }:
+  mkFailingPackage = {
+    pname,
+    message,
+  }:
     final.buildPythonPackage {
       inherit pname;
       version = "0.0.0";
@@ -22,25 +28,23 @@ let
 
   replaceOpenCV = package:
     package.overridePythonAttrs (old: {
-      propagatedBuildInputs =
-        let
-          originalInputs = old.propagatedBuildInputs;
-          filteredInputs = (builtins.filter
-            (x: !(builtins.elem x.pname [
+      propagatedBuildInputs = let
+        originalInputs = old.propagatedBuildInputs;
+        filteredInputs =
+          builtins.filter
+          (x:
+            !(builtins.elem x.pname [
               "opencv-contrib-python"
               "opencv-contrib-python-headless"
               "opencv-python-headless"
             ]))
-            originalInputs);
-        in
-        if builtins.length originalInputs == builtins.length filteredInputs then
-          throw "Package ${package.pname} does not depend on opencv-*"
-        else
-          filteredInputs ++ [ final.opencv-python ];
+          originalInputs;
+      in
+        if builtins.length originalInputs == builtins.length filteredInputs
+        then throw "Package ${package.pname} does not depend on opencv-*"
+        else filteredInputs ++ [final.opencv-python];
     });
-in
-
-{
+in {
   albucore = lib.pipe prev.albucore [
     replaceOpenCV
   ];
@@ -83,20 +87,20 @@ in
 
   # Add autoPatchelfHook to all packages.
   # https://github.com/nix-community/poetry2nix/issues/1589
-  mkPoetryDep = attrs:
-    let
-      originalPoetryDep = prev.mkPoetryDep attrs;
-    in
+  mkPoetryDep = attrs: let
+    originalPoetryDep = prev.mkPoetryDep attrs;
+  in
     originalPoetryDep.overridePythonAttrs (old: {
-      nativeBuildInputs = (old.nativeBuildInputs or [ ]) ++ [
-        autoPatchelfHook
-      ];
+      nativeBuildInputs =
+        (old.nativeBuildInputs or [])
+        ++ [
+          autoPatchelfHook
+        ];
     });
 
   numba = lib.pipe prev.numba [
     (ops.addBuildInputs [
-      # libtbb.so.12
-      tbb_2021
+      onetbb
     ])
   ];
 
