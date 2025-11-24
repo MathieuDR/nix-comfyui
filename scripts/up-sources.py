@@ -65,17 +65,20 @@ def process_file(file_path):
 
         drv_out = build_github_source(changed_source)
 
-        package_lock_file_path = drv_out.joinpath("package-lock.json")
-        new_hash = calc_npm_deps_hash(package_lock_file_path)
+        # Try pnpm-lock.yaml first, fall back to package-lock.json
+        pnpm_lock = drv_out / "pnpm-lock.yaml"
+        npm_lock = drv_out / "package-lock.json"
+        
+        if pnpm_lock.exists():
+            lock_file_path = pnpm_lock
+        elif npm_lock.exists():
+            lock_file_path = npm_lock
+        else:
+            raise FileNotFoundError("No lockfile found (tried pnpm-lock.yaml and package-lock.json)")
+        
+        new_hash = calc_npm_deps_hash(lock_file_path)
 
         return key_value_from_npm_deps_hash(new_hash)
-
-    if changed_source is not None:
-        text = re.sub(npm_deps_hash_pattern, replace_npm_deps_hash, text)
-
-    if text != old_text:
-        file_path.write_text(format_nix(text))
-
 
 github_source_pattern = re.compile(
     r"""
